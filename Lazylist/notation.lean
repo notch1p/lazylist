@@ -1,5 +1,5 @@
 import Lean
-import Lazylist.impl
+import Lazylist.zippable
 namespace LazyList open Lean
 
 local macro f:term:50 " depends_on! " p:term:50 : term =>
@@ -123,10 +123,9 @@ macro_rules
       let is <- ``(fun $i* => $f)
       let fn <- ``(Functor.map $is)
       let l0 := l[0]
-      let hd <- ``($fn $l0)
       show MacroM Term from
-        l.foldlM (init := hd) (start := 1) fun a s =>
-          ``(Seq.seq $a (fun _ : Unit => $s))
+      ``($fn $l0) >>= l.foldlM (start := 1) fun a s =>
+        ``(Seq.seq $a (fun _ : Unit => $s))
     else unreachable!
   | `([ $f | $[$i ← $l],* ]) => ``([ $f | $[$i <- $l],* ])
   | `([ $f where $p | $[$i <- $l],* ]) => do
@@ -138,31 +137,55 @@ macro_rules
   | `([ $f | $[$i <- $l]in* ]) => do
     assert! i.size == l.size && i.size != 0 && l.size != 0
     let (iz, lz) := (i[i.size - 1]!, l[l.size - 1]!)
-    let init <- ``(Functor.map (fun $iz => $f) $lz)
     let li := (l.zip i)[:l.size - 1]
     show MacroM Term from
-      li.foldrM (init := init) fun (t, fb) a => ``(Bind.bind $t (fun $fb => $a))
+    ``(Functor.map (fun $iz => $f) $lz) >>= li.foldrM fun (t, fb) a => 
+      ``(Bind.bind $t (fun $fb => $a))
   | `([ $f | $[$i ← $l]in* ]) => ``([ $f | $[$i <- $l]in* ])
   | `([ $f where $p | $[$i <- $l]in* ]) => do
     let mf <- `($f depends_on! $p)
     assert! i.size == l.size && i.size != 0 && l.size != 0
     let (iz, lz) := (i[i.size - 1]!, l[l.size - 1]!)
-    let init <- ``(Mappable.filterMap (fun $iz => $mf) $lz)
     let li := (l.zip i)[:l.size - 1]
     show MacroM Term from
-      li.foldrM (init := init) fun (t, fb) a => ``(Bind.bind $t (fun $fb => $a))
+    ``(Mappable.filterMap (fun $iz => $mf) $lz) >>=
+      li.foldrM fun (t, fb) a => ``(Bind.bind $t (fun $fb => $a))
   | `([ $f where $p | $[$i ← $l]in* ]) => ``([ $f where $p | $[$i <- $l]in* ])
 -- parallel
   | `([ $f | $[$i <- $l]|* ]) => do
-    let lzip <- l.reverse.foldl1M fun a s => ``(Zippable.zip $a $s)
-    let args <- i.reverse.foldl1M fun a s => ``(($a, $s))
-    ``(Functor.map (fun $args => $f) $lzip)
+    assert! i.size == l.size && i.size != 0 && l.size != 0
+    match h : l.size with
+    | 0 => unreachable!
+    | 1 => ``(Functor.map       (fun $i* => $f) $(l[0]))
+    | 2 => ``(Zippable.zipWith  (fun $i* => $f) $(l[0]) $(l[1]))
+    | 3 => ``(Zippable.zipWith3 (fun $i* => $f) $(l[0]) $(l[1]) $(l[2]))
+    | 4 => ``(Zippable.zipWith4 (fun $i* => $f) $(l[0]) $(l[1]) $(l[2]) $(l[3]))
+    | 5 => ``(Zippable.zipWith5 (fun $i* => $f) $(l[0]) $(l[1]) $(l[2]) $(l[3]) $(l[4]))
+    | 6 => ``(Zippable.zipWith6 (fun $i* => $f) $(l[0]) $(l[1]) $(l[2]) $(l[3]) $(l[4]) $(l[5]))
+    | 7 => ``(Zippable.zipWith7 (fun $i* => $f) $(l[0]) $(l[1]) $(l[2]) $(l[3]) $(l[4]) $(l[5]) $(l[6]))
+    | _ =>
+      let i := i.map fun i => ⟨i.raw.setKind `term⟩
+      let lzip <- l.reverse.foldl1M fun a s => ``(Zippable.zip $a $s)
+      let args <- i.reverse.foldl1M fun a s => ``(($a, $s))
+      ``(Functor.map (fun $args => $f) $lzip)
   | `([ $f | $[$i ← $l]|* ]) => ``([ $f | $[$i <- $l]|* ])
   | `([ $f where $p | $[$i <- $l]|* ]) => do
-    let lzip <- l.reverse.foldl1M fun a s => ``(Zippable.zip $a $s)
-    let args <- i.reverse.foldl1M fun a s => ``(($a, $s))
-    let mf <- `(fun $args => $f depends_on! $p)
-    ``(Mappable.filterMap $mf $lzip)
+    assert! i.size == l.size && i.size != 0 && l.size != 0
+    match h : l.size with
+    | 0 => unreachable!
+    | 1 => ``(                   (Functor.filterMap (fun $i* => $f depends_on! $p) $(l[0])))
+    | 2 => ``(Mappable.filterMap id (Zippable.zipWith  (fun $i* => $f depends_on! $p) $(l[0]) $(l[1])))
+    | 3 => ``(Mappable.filterMap id (Zippable.zipWith3 (fun $i* => $f depends_on! $p) $(l[0]) $(l[1]) $(l[2])))
+    | 4 => ``(Mappable.filterMap id (Zippable.zipWith4 (fun $i* => $f depends_on! $p) $(l[0]) $(l[1]) $(l[2]) $(l[3])))
+    | 5 => ``(Mappable.filterMap id (Zippable.zipWith5 (fun $i* => $f depends_on! $p) $(l[0]) $(l[1]) $(l[2]) $(l[3]) $(l[4])))
+    | 6 => ``(Mappable.filterMap id (Zippable.zipWith6 (fun $i* => $f depends_on! $p) $(l[0]) $(l[1]) $(l[2]) $(l[3]) $(l[4]) $(l[5])))
+    | 7 => ``(Mappable.filterMap id (Zippable.zipWith7 (fun $i* => $f depends_on! $p) $(l[0]) $(l[1]) $(l[2]) $(l[3]) $(l[4]) $(l[5]) $(l[6])))
+    | _ =>
+      let i := i.map fun i => ⟨i.raw.setKind `term⟩
+      let lzip <- l.reverse.foldl1M fun a s => ``(Zippable.zip $a $s)
+      let args <- i.reverse.foldl1M fun a s => ``(($a, $s))
+      let mf <- `(fun $args => $f depends_on! $p)
+      ``(Mappable.filterMap $mf $lzip)
   | `([ $f where $p | $[$i ← $l]|* ]) => ``([ $f where $p | $[$i <- $l]|* ])
-end LazyList
 
+end LazyList

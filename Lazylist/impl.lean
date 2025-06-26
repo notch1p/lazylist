@@ -881,21 +881,6 @@ end LazyListD
 -/
 
 /--
-  Similar to Haskell's `MonadZip`, but for collections especially.
-  But relaxes on the constraint that `m` must be a `Monad` first.
--/
-class Zippable (m : Type u -> Type v) where
-  /-- `zip` zips 2 collections and terminates on the shorter one and discards the rest of the longer one. -/
-  zip : m α -> m β -> m (α × β)
-  /-- `zipWith` zips 2 collections while simultaneously applying a function (which should be curried) to each pair. -/
-  zipWith (f : α -> β -> γ) : m α -> m β -> m γ
-
-instance : Zippable Array := ⟨.zip, .zipWith⟩
-instance : Zippable List := ⟨.zip, .zipWith⟩
-instance : Zippable LazyList := ⟨.zip, .zipWith⟩
-instance : Zippable $ Vector (n := n) := ⟨.zip, .zipWith⟩
-
-/--
   Extends `Functor`, with the addition of `filterMap`, for collections especially.
 -/
 class Mappable (F : Type u -> Type v) extends Functor F where
