@@ -30,7 +30,7 @@ local macro f:term:50 " depends_on! " p:term:50 : term =>
     - **Preferrable** due to better predicative filtering for _non-lazy_ structures,
       but may encounter surprising issues of universe level inferring, see notes below.
       The _canonical_ nondeterministic search with sequential binding with respect to Haskell.
-      (i.e. `x` is bound in `ys` in `x <- xs in y <- ys` while `x <- xs, y <- ys` isn't).
+      (i.e. `x` is bound in `ys` in `x <- xs in y <- ys` but not in `x <- xs, y <- ys`).
       - Additionally requires `Bind` instance.
       - **Syntax** `[term (where pred)? | (pat <- term in)+]`
       ```
@@ -81,6 +81,8 @@ local macro f:term:50 " depends_on! " p:term:50 : term =>
       | x <- [|1 ~~ n + 1|]
      in y <- [|x ~~ n + 1|]
      in z <- [|y ~~ n + 1|]]
+
+  #eval [x + y | x <- some 1, y <- none] -- none
   ```
 -/
 syntax (name := «term[|_<-_|]») "[" term " | " withoutPosition((term (" ← " <|> " <- ") term),+) "]" : term
@@ -92,6 +94,7 @@ syntax (name := «term[|_<-_||]») (priority := 1002) "[" term " | " withoutPosi
 syntax (name := «term[|_<-_|?|]»)(priority := 1002) "[" term " where " term " | " withoutPosition(sepBy((term (" ← " <|> " <- ") term), " | ")) "]" : term
 
 @[inherit_doc gen] syntax "[|" term " ~~ " (term)? (" : " term)? "|]" : term
+@[inherit_doc gen] syntax "[|" term " to " (term)? (" by " term)? "|]" : term
 
 syntax (name := «term[|_<-_in|]») "[" term " | " withoutPosition(sepBy((term (" ← " <|> " <- ") term), " in ")) "]" : term
 syntax (name := «term[|_<-_in?|]») "[" term " where " term " | " withoutPosition(sepBy((term (" ← " <|> " <- ") term), " in ")) "]" : term
@@ -100,6 +103,8 @@ attribute [inherit_doc «term[|_<-_|]»]  «term[|_<-_?|]» «term[|_<-_||]» «
 
 macro_rules
 -- gen
+  | `([| $start to $(stop)? $[by $step]? |]) => do
+    ``([| $start ~~ $(stop)? $[: $step]? |])
   | `([| $start ~~ $(stop)? $[: $step]? |]) => do
     let stop <- if let .some e := stop then ``(Option.some $e) else ``(Option.none)
     let step <- if let .some e := step then pure e else ``(One.one)
@@ -163,27 +168,31 @@ macro_rules
     | 5 => ``(Zippable.zipWith5 (fun $i* => $f) $(l[0]) $(l[1]) $(l[2]) $(l[3]) $(l[4]))
     | 6 => ``(Zippable.zipWith6 (fun $i* => $f) $(l[0]) $(l[1]) $(l[2]) $(l[3]) $(l[4]) $(l[5]))
     | 7 => ``(Zippable.zipWith7 (fun $i* => $f) $(l[0]) $(l[1]) $(l[2]) $(l[3]) $(l[4]) $(l[5]) $(l[6]))
-    | _ =>
+    | _ + 8 =>
       let i := i.map fun i => ⟨i.raw.setKind `term⟩
-      let lzip <- l.reverse.foldl1M fun a s => ``(Zippable.zip $a $s)
-      let args <- i.reverse.foldl1M fun a s => ``(($a, $s))
+      let ls := l.size
+      let hd <- ``(Zippable.zip7 $(l[ls - 7]) $(l[ls - 6]) $(l[ls - 5]) $(l[ls - 4]) $(l[ls - 3]) $(l[ls - 2]) $(l[ls - 1]))
+      let lzip <- l[:ls - 7].foldrM (init := hd) fun s a => ``(Zippable.zip $s $a)
+      let args <- i.reverse.foldl1M fun a s => ``(($s, $a))
       ``(Functor.map (fun $args => $f) $lzip)
   | `([ $f | $[$i ← $l]|* ]) => ``([ $f | $[$i <- $l]|* ])
   | `([ $f where $p | $[$i <- $l]|* ]) => do
     assert! i.size == l.size && i.size != 0 && l.size != 0
     match h : l.size with
     | 0 => unreachable!
-    | 1 => ``(                   (Functor.filterMap (fun $i* => $f depends_on! $p) $(l[0])))
+    | 1 => ``(                      (Functor.filterMap (fun $i* => $f depends_on! $p) $(l[0])))
     | 2 => ``(Mappable.filterMap id (Zippable.zipWith  (fun $i* => $f depends_on! $p) $(l[0]) $(l[1])))
     | 3 => ``(Mappable.filterMap id (Zippable.zipWith3 (fun $i* => $f depends_on! $p) $(l[0]) $(l[1]) $(l[2])))
     | 4 => ``(Mappable.filterMap id (Zippable.zipWith4 (fun $i* => $f depends_on! $p) $(l[0]) $(l[1]) $(l[2]) $(l[3])))
     | 5 => ``(Mappable.filterMap id (Zippable.zipWith5 (fun $i* => $f depends_on! $p) $(l[0]) $(l[1]) $(l[2]) $(l[3]) $(l[4])))
     | 6 => ``(Mappable.filterMap id (Zippable.zipWith6 (fun $i* => $f depends_on! $p) $(l[0]) $(l[1]) $(l[2]) $(l[3]) $(l[4]) $(l[5])))
     | 7 => ``(Mappable.filterMap id (Zippable.zipWith7 (fun $i* => $f depends_on! $p) $(l[0]) $(l[1]) $(l[2]) $(l[3]) $(l[4]) $(l[5]) $(l[6])))
-    | _ =>
+    | _ + 8 =>
       let i := i.map fun i => ⟨i.raw.setKind `term⟩
-      let lzip <- l.reverse.foldl1M fun a s => ``(Zippable.zip $a $s)
-      let args <- i.reverse.foldl1M fun a s => ``(($a, $s))
+      let ls := l.size
+      let hd <- ``(Zippable.zip7 $(l[ls - 7]) $(l[ls - 6]) $(l[ls - 5]) $(l[ls - 4]) $(l[ls - 3]) $(l[ls - 2]) $(l[ls - 1]))
+      let lzip <- l[:ls - 7].foldrM (init := hd) fun s a => ``(Zippable.zip $s $a)
+      let args <- i.reverse.foldl1M fun a s => ``(($s, $a))
       let mf <- `(fun $args => $f depends_on! $p)
       ``(Mappable.filterMap $mf $lzip)
   | `([ $f where $p | $[$i ← $l]|* ]) => ``([ $f where $p | $[$i <- $l]|* ])

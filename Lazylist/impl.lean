@@ -140,7 +140,7 @@ def decEq [DecidableEq α] : (xs : LazyList α) -> (ys : LazyList α) -> Decidab
 def isEmpty (l : LazyList α) : Bool := if l matches nil then true else false
 
 instance [BEq α] : BEq (LazyList α) := ⟨beq⟩
-instance [DecidableEq α] : DecidableEq (LazyList α) := decEq
+instance (priority := mid) [DecidableEq α] : DecidableEq (LazyList α) := decEq
 
 theorem cons_neq_nil [BEq α] {a : α} {as : LazyList α} : beq (a ::' as) nil = false := by simp[beq]
 theorem nil_neq_cons [BEq α] {a : α} {as : LazyList α} : beq nil (a ::' as) = false := by simp[beq]
@@ -465,16 +465,24 @@ def set : LazyList α -> Nat -> α -> LazyList α
 
 /--
   - `append` is the canonical method for concatenating 2 sequence, guarantees laziness.
+  - `appendH` _must_ be used for lazy functions that depends on concatenating operations
+    as Lean is call-by-value we cannot pass some recursive call on infinite list to `appened` without wrapping it in a thunk.
   - `appendTR` is the strict, tailrec version of `append`, implemented using `revAppend`
   - `revAppend xs ys = xs.reverse ++ ys`, implemented using `foldl`.
+  - **Note** (s₁ ++ s₂) dispatch to either `append s₁ s₂` or `appendH s₁ s₂`,
+    depending on the type of s₂.
 -/
 def revAppend {α} xs ys := show LazyList α from foldl (flip (· ::' ·)) ys xs
 @[inherit_doc revAppend]def appendTR {α} xs ys := show LazyList α from revAppend (reverse xs) ys
 attribute [inline] revAppend appendTR
+@[inherit_doc revAppend]def appendH : LazyList α -> Thunk (LazyList α) -> LazyList α
+  | [||], l => l.get
+  | x ::' xs, l => x ::' appendH xs.get l
 @[inherit_doc revAppend]def append : LazyList α -> LazyList α -> LazyList α
-  | nil, l | l, nil => l
+  | nil, l => l
   | x ::' xs, l => x ::' ↑(append xs.get l)
 instance : Append (LazyList α) := ⟨append⟩
+instance : HAppend (LazyList α) (Thunk $ LazyList α) (LazyList α) := ⟨appendH⟩
 
 def concat (xs : LazyList α) (x : α) := xs.foldr (· ::' ·) {x}
 @[always_inline, inline] abbrev pushBack := @concat
@@ -595,13 +603,13 @@ def filterMapM [Monad m] (f : α -> m (Option β)) : LazyList α -> m (LazyList 
 -/
 def flatten : LazyList (LazyList α) -> LazyList α
   | nil => nil
-  | x ::' xs => x ++ flatten xs.get
+  | x ::' xs => x ++ (Thunk.mk $ fun _ => flatten xs.get)
 /--
   guarantees laziness
 -/
 def flatMap (f : α -> LazyList β) : LazyList α -> LazyList β
   | nil => nil
-  | x ::' xs => f x ++ flatMap f xs.get
+  | x ::' xs => (f x) ++ (Thunk.mk $ fun _ => flatMap f xs.get)
 instance : Monad LazyList where pure := singleton; bind := flip flatMap
 @[inline] def flatMapTR (f : α -> LazyList β) (l : LazyList α) : LazyList β := l.foldl (· ++ f ·) nil
 @[inline] def flattenTR {α} l := show LazyList α from flatMapTR id l
@@ -612,7 +620,7 @@ instance : Monad LazyList where pure := singleton; bind := flip flatMap
 def flatMapM [Monad m] (f : α -> m (LazyList β)) : LazyList α -> m (LazyList β)
   | nil => pure nil
   | x ::' xs =>
-    (· ++ ·) <$> f x <*> flatMapM f xs.get
+    append <$> f x <*> flatMapM f xs.get
 
 private def seq {α β : Type u} (mf : LazyList $ α -> β) (mx : Unit -> LazyList α) : LazyList β :=
   mf >>= (· <$> mx ())
@@ -646,8 +654,15 @@ scoped infixr : 50 " <+> " => zip
     `start > stop` and `step < 0`. (this is the case `ints` if set to countdown)
   (That is, if every instances involved above are implemented in a common-sense way.)
 
-  - This function is usually accessed through the notation `[|start ~~ (stop)? (: step)?|]` and
-    used in conjunction with list comprehension
+  - This function is usually accessed through the notations
+    - `[|start ~~ (stop)? (: step)?|]`
+    - `[|start to (stop)? (by step)?|]` (verbose)
+    - other than the above, there are also coercions from `Std.Range` to 
+      `Array Nat` `List Nat` `LazyList Nat` after importing this module.
+      Although most of the time this probably wouldn't work without explicit annotation
+      because numbers in Lean are polymorphic and there wont be a coercion 
+      without eliminating metavariables first.
+    and used in conjunction with list comprehension
 
   ```
   gen 0 none 1 |>.filter (· ^ 2 > 4) = [id <- [|0~~|], (· ^ 2 > 4)]
@@ -850,7 +865,11 @@ theorem beq.eq_of_beq [BEq α] [LawfulBEq α] {as bs : LazyList α} : (as == bs)
     | cons x xs =>
       simp_all[BEq.beq, beq]
       exact Thunk.ext $ beq.eq_of_beq h.2
+theorem eq_iff_beq {as bs : LazyList α} [BEq α] [LawfulBEq α] : (as.beq bs) = true <-> as = bs := ⟨beq.eq_of_beq, beq_of_eq⟩
 instance [BEq α] [LawfulBEq α] : LawfulBEq (LazyList α) := ⟨beq.eq_of_beq⟩
+
+instance altDecEq [DecidableEq α] {as bs : LazyList α} : Decidable (as = bs) :=
+  decidable_of_decidable_of_iff eq_iff_beq
 end LazyList
 
 /-
@@ -882,6 +901,7 @@ end LazyListD
 
 /--
   Extends `Functor`, with the addition of `filterMap`, for collections especially.
+  - Any `Monad` that has an `Alternative` instance is `Mappable`.
 -/
 class Mappable (F : Type u -> Type v) extends Functor F where
   /-- `filterMap` filters a collection, discarding any element `x` such that `f x = none`. -/
@@ -896,5 +916,13 @@ class Mappable (F : Type u -> Type v) extends Functor F where
 instance : Mappable List := ⟨.filterMap, .filter⟩
 instance : Mappable Array := ⟨.filterMap, .filter⟩
 instance : Mappable LazyList := ⟨.filterMap, .filter⟩
-instance (priority := low) : Monad List where pure := List.singleton; bind := flip .flatMap
-instance (priority := low) : Monad Array where pure := Array.singleton; bind := flip .flatMap
+@[default_instance] instance (priority := low) [Alternative m] [Monad m] : Mappable m where
+  filterMap f xs := xs >>= fun x => if let some x := f x then pure x else failure
+
+instance : Monad List where pure := List.singleton; bind := flip .flatMap
+instance : Monad Array where pure := Array.singleton; bind := flip .flatMap
+
+@[default_instance] instance : Coe Std.Range (List Nat) := ⟨fun {start, stop, step,..} => List.range'TR start (stop - start) step⟩
+@[default_instance] instance : Coe Std.Range (Array Nat) := ⟨fun {start, stop, step,..} => Array.range' start (stop - start) step⟩
+@[default_instance] instance : Coe Std.Range (LazyList Nat) := ⟨.fromRange⟩
+

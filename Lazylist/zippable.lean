@@ -1,22 +1,20 @@
 import Lazylist.impl
 import Lean
+
+macro:max "prod_of!" n:num : term => 
+  match n.getNat with
+  | 0 => ``(())
+  | 1 => ``(id)
+  | n + 2 =>
+    ``((· , ·)) >>= n.foldM fun _ _ a =>
+      ``((· , $a))
+
 /--
   Similar to Haskell's `MonadZip`, but for collections especially.
   But relaxes on the constraint that `m` must be a `Monad` first.
+  - Any `Monad` is `Zippable`.
 -/
 class Zippable (m : Type u -> Type v) where
-  /-- `zip` zips 2 collections and terminates on the shorter one and discards the rest of the longer one. -/
-  zip : m α -> m β -> m (α × β)
-  /-- `zip3` zips 3 collections and terminates on the shortest one and discards the rest of the others. -/
-  zip3 : m α -> m β -> m γ -> m (α × β × γ)
-  /-- `zip4` zips 4 collections and terminates on the shortest one and discards the rest of the others. -/
-  zip4 : m α -> m β -> m γ -> m δ -> m (α × β × γ × δ)
-  /-- `zip5` zips 5 collections and terminates on the shortest one and discards the rest of the others. -/
-  zip5 : m α -> m β -> m γ -> m δ -> m ε -> m (α × β × γ × δ × ε)
-  /-- `zip6` zips 6 collections and terminates on the shortest one and discards the rest of the others. -/
-  zip6 : m α -> m β -> m γ -> m δ -> m ε -> m ζ -> m (α × β × γ × δ × ε × ζ)
-  /-- `zip7` zips 7 collections and terminates on the shortest one and discards the rest of the others. -/
-  zip7 : m α -> m β -> m γ -> m δ -> m ε -> m ζ -> m η -> m (α × β × γ × δ × ε × ζ × η)
 
   /-- `zipWith` zips 2 collections while simultaneously applying a function (which should be curried) to each pair. -/
   zipWith (f : α -> β -> γ) : m α -> m β -> m γ
@@ -31,13 +29,18 @@ class Zippable (m : Type u -> Type v) where
   /-- `zipWith7` zips 7 collections while simultaneously applying a function (which should be curried) to each 7-tuple. -/
   zipWith7 (f : α -> β -> γ -> δ -> ζ -> η -> θ -> ι) : m α -> m β -> m γ -> m δ -> m ζ -> m η -> m θ -> m ι
 
-macro:max "prod_of!" n:num : term => 
-  match n.getNat with
-  | 0 => ``(())
-  | 1 => ``(id)
-  | n + 2 =>
-    ``((· , ·)) >>= n.foldM fun _ _ a =>
-      ``((· , $a))
+  /-- `zip` zips 2 collections and terminates on the shorter one and discards the rest of the longer one. -/
+  zip : m α -> m β -> m (α × β) := zipWith prod_of! 2
+  /-- `zip3` zips 3 collections and terminates on the shortest one and discards the rest of the others. -/
+  zip3 : m α -> m β -> m γ -> m (α × β × γ) := zipWith3 prod_of! 3
+  /-- `zip4` zips 4 collections and terminates on the shortest one and discards the rest of the others. -/
+  zip4 : m α -> m β -> m γ -> m δ -> m (α × β × γ × δ) := zipWith4 prod_of! 4
+  /-- `zip5` zips 5 collections and terminates on the shortest one and discards the rest of the others. -/
+  zip5 : m α -> m β -> m γ -> m δ -> m ε -> m (α × β × γ × δ × ε) := zipWith5 prod_of! 5
+  /-- `zip6` zips 6 collections and terminates on the shortest one and discards the rest of the others. -/
+  zip6 : m α -> m β -> m γ -> m δ -> m ε -> m ζ -> m (α × β × γ × δ × ε × ζ) := zipWith6 prod_of! 6
+  /-- `zip7` zips 7 collections and terminates on the shortest one and discards the rest of the others. -/
+  zip7 : m α -> m β -> m γ -> m δ -> m ε -> m ζ -> m η -> m (α × β × γ × δ × ε × ζ × η) := zipWith7 prod_of! 7
 
 section 
 variable 
@@ -65,17 +68,11 @@ def zipWith7 (f : α -> β -> γ -> δ -> ζ -> η -> θ -> ι) : List α -> Lis
   go acc
   | a :: as, b :: bs, c :: cs, d :: ds, e :: es, f' :: fs, g :: gs => go (acc.push $ f a b c d e f' g) as bs cs ds es fs gs
   | _, _, _, _, _, _, _ => acc.toList
-
-def zip3 : List α -> List β -> List γ -> List (α × β × γ) := zipWith3 prod_of! 3
-def zip4 : List α -> List β -> List γ -> List δ -> List (α × β × γ × δ) := zipWith4 prod_of! 4
-def zip5 : List α -> List β -> List γ -> List δ -> List ε -> List (α × β × γ × δ × ε) := zipWith5 prod_of! 5
-def zip6 : List α -> List β -> List γ -> List δ -> List ε -> List ζ -> List (α × β × γ × δ × ε × ζ) := zipWith6 prod_of! 6
-def zip7 : List α -> List β -> List γ -> List δ -> List ε -> List ζ -> List η -> List (α × β × γ × δ × ε × ζ × η) := zipWith7 prod_of! 7
-attribute [inline] zipWith3 zipWith4 zipWith5 zipWith6 zipWith7 zip3 zip4 zip5 zip6 zip7
+attribute [inline] zipWith3 zipWith4 zipWith5 zipWith6 zipWith7
 end List
 
-open List in instance : Zippable List := 
-  ⟨zip, zip3, zip4, zip5, zip6, zip7, zipWith, zipWith3, zipWith4, zipWith5, zipWith6, zipWith7⟩
+open List in instance : Zippable List where
+  zipWith; zipWith3; zipWith4; zipWith5; zipWith6; zipWith7
 
 namespace Array
 -- with respect to Lisp's isonymic functions.
@@ -134,9 +131,7 @@ macro_rules
           have : i < accessors.size := Nat.lt_of_lt_of_le h $ accsize ▸ H.1
           if i = ts - 1 then 
             have : i - 1 < accessors'.size := Nat.sub_lt_of_lt $ accsize' ▸ (accsize ▸ this)
-            let accessor <- accessors'[i - 1]
-            `(have : m <= Array.size $(t[i]) := by simp[m, minOf]; $accessor
-              $a)
+            pfcmds t[i] (<-accessors'[i-1]) a
           else
             pfcmds t[i] (<- accessors[i]) a
         `(let m := minOf [$[Array.size $t],*] nonempty!;
@@ -159,16 +154,11 @@ def zipWith6 (f : α -> β -> γ -> δ -> ζ -> η -> θ) : Array α -> Array β
   | as, bs, cs, ds, es, fs => proof_and_fold! f as bs cs ds es fs
 def zipWith7 (f : α -> β -> γ -> δ -> ζ -> η -> θ -> ι) : Array α -> Array β -> Array γ -> Array δ -> Array ζ -> Array η -> Array θ -> Array ι
   | as, bs, cs, ds, es, fs, gs => proof_and_fold! f as bs cs ds es fs gs
-
-def zip3 : Array α -> Array β -> Array γ -> Array (α × β × γ) := zipWith3 prod_of! 3
-def zip4 : Array α -> Array β -> Array γ -> Array δ -> Array (α × β × γ × δ) := zipWith4 prod_of! 4
-def zip5 : Array α -> Array β -> Array γ -> Array δ -> Array ε -> Array (α × β × γ × δ × ε) := zipWith5 prod_of! 5
-def zip6 : Array α -> Array β -> Array γ -> Array δ -> Array ε -> Array ζ -> Array (α × β × γ × δ × ε × ζ) := zipWith6 prod_of! 6
-def zip7 : Array α -> Array β -> Array γ -> Array δ -> Array ε -> Array ζ -> Array η -> Array (α × β × γ × δ × ε × ζ × η) := zipWith7 prod_of! 7
-attribute [inline] zipWith3 zipWith4 zipWith5 zipWith6 zipWith7 zip3 zip4 zip5 zip6 zip7
+attribute [inline] zipWith3 zipWith4 zipWith5 zipWith6 zipWith7
 end Array
 
-open Array in instance : Zippable Array := ⟨zip, zip3, zip4, zip5, zip6, zip7, zipWith ,zipWith3, zipWith4, zipWith5, zipWith6, zipWith7⟩
+open Array in instance : Zippable Array where 
+  zipWith; zipWith3; zipWith4; zipWith5; zipWith6; zipWith7
 
 namespace LazyList
 def zipWith3 (f : α -> β -> γ -> δ) : LazyList α -> LazyList β -> LazyList γ -> LazyList δ
@@ -186,15 +176,18 @@ def zipWith6 (f : α -> β -> γ -> δ -> ζ -> η -> θ) : LazyList α -> LazyL
 def zipWith7 (f : α -> β -> γ -> δ -> ζ -> η -> θ -> ι) : LazyList α -> LazyList β -> LazyList γ -> LazyList δ -> LazyList ζ -> LazyList η -> LazyList θ -> LazyList ι
   | a ::' as, b ::' bs, c ::' cs, d ::' ds, e ::' es, f' ::' fs, g ::' gs => f a b c d e f' g ::' zipWith7 f as.get bs.get cs.get ds.get es.get fs.get gs.get
   | _, _, _, _, _, _, _ => [||]
-
-def zip3 : LazyList α -> LazyList β -> LazyList γ -> LazyList (α × β × γ) := zipWith3 prod_of! 3
-def zip4 : LazyList α -> LazyList β -> LazyList γ -> LazyList δ -> LazyList (α × β × γ × δ) := zipWith4 prod_of! 4
-def zip5 : LazyList α -> LazyList β -> LazyList γ -> LazyList δ -> LazyList ε -> LazyList (α × β × γ × δ × ε) := zipWith5 prod_of! 5
-def zip6 : LazyList α -> LazyList β -> LazyList γ -> LazyList δ -> LazyList ε -> LazyList ζ -> LazyList (α × β × γ × δ × ε × ζ) := zipWith6 prod_of! 6
-def zip7 : LazyList α -> LazyList β -> LazyList γ -> LazyList δ -> LazyList ε -> LazyList ζ -> LazyList η -> LazyList (α × β × γ × δ × ε × ζ × η) := zipWith7 prod_of! 7
-attribute [inline] zipWith3 zipWith4 zipWith5 zipWith6 zipWith7 zip3 zip4 zip5 zip6 zip7
 end LazyList
 
-open LazyList in instance : Zippable LazyList := ⟨zip, zip3, zip4, zip5, zip6, zip7, zipWith ,zipWith3, zipWith4, zipWith5, zipWith6, zipWith7⟩
+open LazyList in instance : Zippable LazyList where 
+  zipWith; zipWith3; zipWith4; zipWith5; zipWith6; zipWith7
+
+instance (priority := low) [Monad m] : Zippable m where
+  zipWith  := (· <$> · <*> ·)
+  zipWith3 := (· <$> · <*> · <*> ·)
+  zipWith4 := (· <$> · <*> · <*> · <*> ·)
+  zipWith5 := (· <$> · <*> · <*> · <*> · <*> ·)
+  zipWith6 := (· <$> · <*> · <*> · <*> · <*> · <*> ·)
+  zipWith7 := (· <$> · <*> · <*> · <*> · <*> · <*> · <*> ·)
+
 end
 
