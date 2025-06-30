@@ -119,12 +119,7 @@ macro_rules
   | `([ $f ← $l $[, $p]? ]) => ``([ $f <- $l $[, $p]? ])
 -- nondeterministic search
   | `([ $f | $[$i <- $l],* ]) => do
-    assert! i.size == l.size && i.size != 0 && l.size != 0
-    if h : l.size = 1 then
-      let (i0, l0) := (i[0]!,l[0])
-      let fn <- ``(Functor.map fun $i0 => $f)
-      ``($fn $l0)
-    else if h : l.size > 1 then
+    if h : l.size >= 1 then
       let is <- ``(fun $i* => $f)
       let fn <- ``(Functor.map $is)
       let l0 := l[0]
@@ -135,21 +130,21 @@ macro_rules
   | `([ $f | $[$i ← $l],* ]) => ``([ $f | $[$i <- $l],* ])
   | `([ $f where $p | $[$i <- $l],* ]) => do
     let mf <- ``($f depends_on! $p)
-    ``(Mappable.filterMap id [ $mf | $[$i <- $l]in* ])
+    ``(Mappable.filterMap id [ $mf | $[$i <- $l],* ])
   | `([ $f where $p | $[$i ← $l],* ]) => do
     ``([ $f where $p | $[$i <- $l],* ])
 -- sequential binding version of the above
   | `([ $f | $[$i <- $l]in* ]) => do
-    assert! i.size == l.size && i.size != 0 && l.size != 0
-    let (iz, lz) := (i[i.size - 1]!, l[l.size - 1]!)
-    let li := (l.zip i)[:l.size - 1]
-    show MacroM Term from
-    ``(Functor.map (fun $iz => $f) $lz) >>= li.foldrM fun (t, fb) a => 
-      ``(Bind.bind $t (fun $fb => $a))
+    if h : i.size >= 1 ∧ l.size >= 1 then
+      let (iz, lz) := (i[i.size - 1], l[l.size - 1])
+      let li := (l.zip i)[:l.size - 1]
+      show MacroM Term from
+      ``(Functor.map (fun $iz => $f) $lz) >>= li.foldrM fun (t, fb) a =>
+        ``(Bind.bind $t (fun $fb => $a))
+    else unreachable!
   | `([ $f | $[$i ← $l]in* ]) => ``([ $f | $[$i <- $l]in* ])
   | `([ $f where $p | $[$i <- $l]in* ]) => do
     let mf <- `($f depends_on! $p)
-    assert! i.size == l.size && i.size != 0 && l.size != 0
     let (iz, lz) := (i[i.size - 1]!, l[l.size - 1]!)
     let li := (l.zip i)[:l.size - 1]
     show MacroM Term from
@@ -158,7 +153,6 @@ macro_rules
   | `([ $f where $p | $[$i ← $l]in* ]) => ``([ $f where $p | $[$i <- $l]in* ])
 -- parallel
   | `([ $f | $[$i <- $l]|* ]) => do
-    assert! i.size == l.size && i.size != 0 && l.size != 0
     match h : l.size with
     | 0 => unreachable!
     | 1 => ``(Functor.map       (fun $i* => $f) $(l[0]))
@@ -177,7 +171,6 @@ macro_rules
       ``(Functor.map (fun $args => $f) $lzip)
   | `([ $f | $[$i ← $l]|* ]) => ``([ $f | $[$i <- $l]|* ])
   | `([ $f where $p | $[$i <- $l]|* ]) => do
-    assert! i.size == l.size && i.size != 0 && l.size != 0
     match h : l.size with
     | 0 => unreachable!
     | 1 => ``(                      (Functor.filterMap (fun $i* => $f depends_on! $p) $(l[0])))

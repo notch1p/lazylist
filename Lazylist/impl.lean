@@ -657,10 +657,10 @@ scoped infixr : 50 " <+> " => zip
   - This function is usually accessed through the notations
     - `[|start ~~ (stop)? (: step)?|]`
     - `[|start to (stop)? (by step)?|]` (verbose)
-    - other than the above, there are also coercions from `Std.Range` to 
+    - other than the above, there are also coercions from `Std.Range` to
       `Array Nat` `List Nat` `LazyList Nat` after importing this module.
       Although most of the time this probably wouldn't work without explicit annotation
-      because numbers in Lean are polymorphic and there wont be a coercion 
+      because numbers in Lean are polymorphic and there wont be a coercion
       without eliminating metavariables first.
     and used in conjunction with list comprehension
 
@@ -925,4 +925,3 @@ instance : Monad Array where pure := Array.singleton; bind := flip .flatMap
 @[default_instance] instance : Coe Std.Range (List Nat) := ⟨fun {start, stop, step,..} => List.range'TR start (stop - start) step⟩
 @[default_instance] instance : Coe Std.Range (Array Nat) := ⟨fun {start, stop, step,..} => Array.range' start (stop - start) step⟩
 @[default_instance] instance : Coe Std.Range (LazyList Nat) := ⟨.fromRange⟩
-
