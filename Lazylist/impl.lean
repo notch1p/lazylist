@@ -925,3 +925,4 @@ instance : Monad Array where pure := Array.singleton; bind := flip .flatMap
 @[default_instance] instance : Coe Std.Range (List Nat) := ⟨fun {start, stop, step,..} => List.range'TR start (stop - start) step⟩
 @[default_instance] instance : Coe Std.Range (Array Nat) := ⟨fun {start, stop, step,..} => Array.range' start (stop - start) step⟩
 @[default_instance] instance : Coe Std.Range (LazyList Nat) := ⟨.fromRange⟩
+

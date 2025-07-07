@@ -90,14 +90,14 @@ syntax (name := «term[|_<-_?|]») "[" term " where"  term " | " withoutPosition
 
 @[inherit_doc «term[|_<-_|]»] syntax "[" term (" ← " <|> " <- ") term (" , " term)? "]" : term
 
-syntax (name := «term[|_<-_||]») (priority := 1002) "[" term " | " withoutPosition(sepBy((term (" ← " <|> " <- ") term), " | ")) "]" : term
-syntax (name := «term[|_<-_|?|]»)(priority := 1002) "[" term " where " term " | " withoutPosition(sepBy((term (" ← " <|> " <- ") term), " | ")) "]" : term
+syntax (name := «term[|_<-_||]») (priority := 1002) "[" term " | " withoutPosition(sepBy1((term (" ← " <|> " <- ") term), " | ")) "]" : term
+syntax (name := «term[|_<-_|?|]»)(priority := 1002) "[" term " where " term " | " withoutPosition(sepBy1((term (" ← " <|> " <- ") term), " | ")) "]" : term
 
 @[inherit_doc gen] syntax "[|" term " ~~ " (term)? (" : " term)? "|]" : term
 @[inherit_doc gen] syntax "[|" term " to " (term)? (" by " term)? "|]" : term
 
-syntax (name := «term[|_<-_in|]») "[" term " | " withoutPosition(sepBy((term (" ← " <|> " <- ") term), " in ")) "]" : term
-syntax (name := «term[|_<-_in?|]») "[" term " where " term " | " withoutPosition(sepBy((term (" ← " <|> " <- ") term), " in ")) "]" : term
+syntax (name := «term[|_<-_in|]») "[" term " | " withoutPosition(sepBy1((term (" ← " <|> " <- ") term), " in ")) "]" : term
+syntax (name := «term[|_<-_in?|]») "[" term " where " term " | " withoutPosition(sepBy1((term (" ← " <|> " <- ") term), " in ")) "]" : term
 
 attribute [inherit_doc «term[|_<-_|]»]  «term[|_<-_?|]» «term[|_<-_||]» «term[|_<-_|?|]» «term[|_<-_in|]» «term[|_<-_in?|]»
 
@@ -191,3 +191,4 @@ macro_rules
   | `([ $f where $p | $[$i ← $l]|* ]) => ``([ $f where $p | $[$i <- $l]|* ])
 
 end LazyList
+
