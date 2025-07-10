@@ -127,6 +127,12 @@ private unsafe def beqI [BEq α] (xs ys : LazyList α) : Bool :=
   | nil, nil => true
   | nil, _ | _, nil => false
   | x ::' xs, y ::' ys => x == y && beq xs.get ys.get
+/--
+  the canonical decidable equality for `LazyList`.
+  But the instance `altDecEq` which transfers 
+  the decidability of `(· == ·)` to `(· = ·)` is actually used.
+  because `beq` itself is override in the runtime by `beqI`.
+-/
 def decEq [DecidableEq α] : (xs : LazyList α) -> (ys : LazyList α) -> Decidable (xs = ys)
   | nil, nil => isTrue rfl
   | nil, _ ::' _ | _ ::' _, nil => isFalse nofun
@@ -351,6 +357,8 @@ decreasing_by next _ _ h' => simp[-Thunk.get, h']; omega
   | nil, d => d
   | x ::' xs, d => if xs.get matches nil then x else getLastD xs.get d
 
+@[macro_inline] private abbrev bracketed [ToString α] (s : α) : String := s!"[|{s}|]"
+
 /--
   Folds the whole list to force its string representation,
   unlike `peek`, which only peeks at the head of a list.
@@ -358,8 +366,7 @@ decreasing_by next _ _ h' => simp[-Thunk.get, h']; omega
 -/
 def toStr [ToString α] (l : LazyList α) : String :=
   bracketed (go l) where
-  bracketed s := s!"[|{s}|]"
-  go | nil => "" | xs => xs.mapReducel toString (· ++ ", " ++ ·)
+  go | nil => "" | x ::' xs => xs.get.foldl (· ++ toString ·) (toString x)
 /--
   Peeks at the head of a list, unlike `toStr`,
   which eagerly triggers the forcing of the whole list.
@@ -369,7 +376,6 @@ def toStr [ToString α] (l : LazyList α) : String :=
 -/
 def peek [Repr α] (l : LazyList α) : String :=
   bracketed (go l) where
-  bracketed s := s!"[|{s}|]"
   go | nil => "" | x ::' _ => s!"{reprStr x}, ⋯"
 instance [ToString α] : ToString $ LazyList α := ⟨toStr⟩
 instance [Repr α] : Repr $ LazyList α := ⟨flip $ const (.text ∘ peek)⟩
@@ -694,7 +700,7 @@ partial def gen [Add α] [Zero α] [One α] [LT α] [DecidableLT α]
                              then start ::' ↑(go (start + step) stop)
                              else nil
     if let some stop := stop then go start stop else goInf start
-attribute [inline] gen.stepPos gen.stepNeg gen
+attribute [inline] gen.stepPos gen.stepNeg gen gen.goInf
 def nats (start := 0) (step := 1) := show LazyList Nat from gen start none step
 def ints start (step : Int := 1) := show LazyList Int from gen start none step
 attribute [always_inline, inline, inherit_doc gen] nats ints
@@ -797,6 +803,9 @@ def mapMono (f : α -> α) (l : LazyList α) : LazyList α := Id.run $ mapMonoM 
 protected def Subset (xs ys : LazyList α) := ∀ ⦃a : α⦄, a ∈ xs -> a ∈ ys
 instance : HasSubset (LazyList α) := ⟨LazyList.Subset⟩
 
+/--
+  support for the syntax `∃x ∈ xs, p x` where `p` is predicate on `x`.
+-/
 instance decidableExists (P : α -> Prop) [DecidablePred P] :
   (xs : LazyList α) -> Decidable (∃x ∈ xs, P x)
   | nil => isFalse nofun
@@ -814,6 +823,9 @@ instance decidableExists (P : α -> Prop) [DecidablePred P] :
           | head => exact h₁ h''
           | step _ hw => exact h ⟨w, hw, h''⟩
 
+/--
+  support for the syntax `∀x ∈ xs, p x` where `p` is predicate on `x`.
+-/
 instance decidableForall (P : α -> Prop) [DecidablePred P] :
   (xs : LazyList α) -> Decidable (∀x ∈ xs, P x)
   | nil => isTrue nofun
