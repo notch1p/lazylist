@@ -191,4 +191,3 @@ macro_rules
   | `([ $f where $p | $[$i ← $l]|* ]) => ``([ $f where $p | $[$i <- $l]|* ])
 
 end LazyList
-

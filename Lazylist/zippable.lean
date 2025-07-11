@@ -1,7 +1,7 @@
 import Lazylist.impl
 import Lean
 
-macro:max "prod_of!" n:num : term => 
+macro:max "prod_of!" n:num : term =>
   match n.getNat with
   | 0 => ``(())
   | 1 => ``(id)
@@ -42,9 +42,9 @@ class Zippable (m : Type u -> Type v) where
   /-- `zip7` zips 7 collections and terminates on the shortest one and discards the rest of the others. -/
   zip7 : m α -> m β -> m γ -> m δ -> m ε -> m ζ -> m η -> m (α × β × γ × δ × ε × ζ × η) := zipWith7 prod_of! 7
 
-section 
-variable 
-  {α : Type u₁} {β : Type u₂} {γ : Type u₃} {δ : Type u₄} 
+section
+variable
+  {α : Type u₁} {β : Type u₂} {γ : Type u₃} {δ : Type u₄}
   {ζ : Type u₅} {η : Type u₆} {θ : Type u₇} {ι : Type u₈}
 
 namespace List
@@ -74,80 +74,78 @@ end List
 open List in instance : Zippable List where
   zipWith; zipWith3; zipWith4; zipWith5; zipWith6; zipWith7
 
-namespace Array
--- with respect to Lisp's isonymic functions.
--- (min (min (min ..))) ≅ (cons (cons (cons ..))) and 
--- in the case below interspersed by the transitive fact of `(· <= · )`
 
 def minOfI [Min α] : (l : List α) -> l ≠ [] -> α
   | x :: xs, _ => xs.foldl min x
-
-@[implemented_by minOfI] def minOf [Min α] : (l : List α) -> l ≠ [] -> α
+@[implemented_by minOfI, reducible] def minOf [Min α] : (l : List α) -> l ≠ [] -> α
   | [x], _ => x
-  | x :: y :: xs, _ => minOf (min x y :: xs) (List.cons_ne_nil _ _)
+  | x :: y :: xs, _ => min x $ minOf (y :: xs) (List.cons_ne_nil _ _)
 
-private abbrev cdr {a b} := Nat.min_le_right a b 
+-- with respect to Lisp's isonymic functions.
+-- (min (min (min ..))) ≅ (cons (cons (cons ..))) and
+-- in the case below interspersed by the transitive fact of `(· <= ·)`
+
+private abbrev cdr {a b} := Nat.min_le_right a b
 private abbrev car {a b} := Nat.min_le_left  a b
+private abbrev nonempty {a : α} {l : List α} := List.cons_ne_nil a l
 local infixr:60 " <> " => Nat.le_trans
-local macro "nonempty!" : term => ``(List.cons_ne_nil _ _)
-local macro "car" : tactic => `(tactic|exact car)
-local macro "cadr" : tactic => `(tactic|exact cdr <> car)
-local macro "caddr" : tactic => `(tactic|exact cdr <> cdr <> car)
-local macro "cadddr" : tactic => `(tactic|exact cdr <> cdr <> cdr <> car)
-local macro "caddddr" : tactic => `(tactic|exact cdr <> cdr <> cdr <> cdr <> car)
-local macro "cadddddr" : tactic => `(tactic|exact cdr <> cdr <> cdr <> cdr <> cdr <> car)
-local macro "caddddddr" : tactic => `(tactic|exact cdr <> cdr <> cdr <> cdr <> cdr <> cdr <> car)
-local macro "cadddddddr" : tactic => `(tactic|exact cdr <> cdr <> cdr <> cdr <> cdr <> cdr <> cdr <> car)
+local macro "cadr" : term => ``(cdr <> car)
+local macro "caddr" : term => ``(cdr <> cdr <> car)
+local macro "cadddr" : term => ``(cdr <> cdr <> cdr <> car)
+local macro "caddddr" : term => ``(cdr <> cdr <> cdr <> cdr <> car)
+local macro "cadddddr" : term => ``(cdr <> cdr <> cdr <> cdr <> cdr <> car)
+local macro "caddddddr" : term => ``(cdr <> cdr <> cdr <> cdr <> cdr <> cdr <> car)
+local macro "cadddddddr" : term => ``(cdr <> cdr <> cdr <> cdr <> cdr <> cdr <> cdr <> car)
 
-local macro "cdr" : tactic => `(tactic|exact cdr)
-local macro "cddr" : tactic => `(tactic|exact cdr <> cdr)
-local macro "cdddr" : tactic => `(tactic|exact cdr <> cdr <> cdr)
-local macro "cddddr" : tactic => `(tactic|exact cdr <> cdr <> cdr <> cdr)
-local macro "cdddddr" : tactic => `(tactic|exact cdr <> cdr <> cdr <> cdr <> cdr)
-local macro "cddddddr" : tactic => `(tactic|exact cdr <> cdr <> cdr <> cdr <> cdr <> cdr)
-local macro "cdddddddr" : tactic => `(tactic|exact cdr <> cdr <> cdr <> cdr <> cdr <> cdr <> cdr)
-local macro "cddddddddr" : tactic => `(tactic|exact cdr <> cdr <> cdr <> cdr <> cdr <> cdr <> cdr <> cdr)
+local macro "cddr" : term => ``(cdr <> cdr)
+local macro "cdddr" : term => ``(cdr <> cdr <> cdr)
+local macro "cddddr" : term => ``(cdr <> cdr <> cdr <> cdr)
+local macro "cdddddr" : term => ``(cdr <> cdr <> cdr <> cdr <> cdr)
+local macro "cddddddr" : term => ``(cdr <> cdr <> cdr <> cdr <> cdr <> cdr)
+local macro "cdddddddr" : term => ``(cdr <> cdr <> cdr <> cdr <> cdr <> cdr <> cdr)
+local macro "cddddddddr" : term => ``(cdr <> cdr <> cdr <> cdr <> cdr <> cdr <> cdr <> cdr)
+
 open Lean
-private abbrev accessors : Array $ MacroM Syntax.Tactic := 
-  #[ `(tactic|car), `(tactic|cadr), `(tactic|caddr), `(tactic|cadddr)
-  , `(tactic|caddddr), `(tactic|cadddddr), `(tactic|caddddddr), `(tactic|cadddddddr)]
-private abbrev accessors' : Array $ MacroM Syntax.Tactic := 
-  #[ `(tactic|cdr), `(tactic|cddr), `(tactic|cdddr), `(tactic|cddddr)
-   , `(tactic|cdddddr), `(tactic|cddddddr), `(tactic|cdddddddr), `(tactic|cddddddddr)]
-@[simp]private theorem accsize : accessors.size = 8 := by decide
-@[simp]private theorem accsize' : accessors'.size = 8 := by decide
+private abbrev accessors : Array $ MacroM Term :=
+  #[ `(car), `(cadr), `(caddr), `(cadddr)
+  , `(caddddr), `(cadddddr), `(caddddddr), `(cadddddddr)]
+private abbrev accessors' : Array $ MacroM Term :=
+  #[ `(cdr), `(cddr), `(cdddr), `(cddddr)
+   , `(cdddddr), `(cddddddr), `(cdddddddr), `(cddddddddr)]
+private def pfcmds (s : Ident) (pf : Term) (cont : Term) : MacroM Term :=
+  `(have : m <= Array.size $s := $pf; $cont)
+@[local simp] private theorem accsize  :  accessors.size = 8 := by decide
+@[local simp] private theorem accsize' : accessors'.size = 8 := by decide
 
-private def pfcmds (s : Ident) (pf : Syntax.Tactic) (cont : Term) : MacroM Term := 
-  `(have : m <= Array.size $s := by simp[m, minOf]; $pf -- mandatory linebreak
-    $cont)
 local syntax "proof_and_fold!" ident ident+ : term
 macro_rules
   | `(proof_and_fold! $f $[$t]*) => do
       let ts := t.size
-      if H : ts <= 8 ∧ ts >= 2 then 
+      if H : ts <= 8 ∧ ts >= 2 then
         let funapp <- t.foldlM (init := f) fun a s => `($a ($s[i]))
         let cont <- `(Nat.fold m (init := #[]) fun i h a => Array.push a $(funapp))
         let blk <- ts.foldRevM (init := cont) fun i h a => do
           have : i < accessors.size := Nat.lt_of_lt_of_le h $ accsize ▸ H.1
-          if i = ts - 1 then 
-            have : i - 1 < accessors'.size := Nat.sub_lt_of_lt $ accsize' ▸ (accsize ▸ this)
+          if i = ts - 1 then
+            have : i - 1 < accessors'.size := Nat.sub_lt_of_lt $ accsize' ▸ accsize ▸ this
             pfcmds t[i] (<-accessors'[i-1]) a
           else
             pfcmds t[i] (<- accessors[i]) a
-        `(let m := minOf [$[Array.size $t],*] nonempty!;
+        `(let m := minOf [$[Array.size $t],*] nonempty;
           $blk)
       else Macro.throwError "handler not implemented, see source."
 
+namespace Array
 def zipWith3 (f : α -> β -> γ -> δ) : Array α -> Array β -> Array γ -> Array δ
   | as, bs, cs => proof_and_fold! f as bs cs
 def zipWith4 (f : α -> β -> γ -> δ -> ζ) : Array α -> Array β -> Array γ -> Array δ -> Array ζ
   | as, bs, cs, ds => -- what `proof_and_fold!` should be expanded to
-    let m := minOf [as.size, bs.size, cs.size, ds.size] nonempty!
-    have : m <= as.size := by simp[m, minOf]; car
-    have : m <= bs.size := by simp[m, minOf]; cadr
-    have : m <= cs.size := by simp[m, minOf]; caddr
-    have : m <= ds.size := by simp[m, minOf]; cdddr
-    m.fold (init := #[]) fun i h a => a.push (f as[i] bs[i] cs[i] ds[i])
+    let m := minOf [as.size, bs.size, cs.size, ds.size] nonempty
+    have h₁ : m <= as.size := car
+    have : m <= bs.size := cadr
+    have : m <= cs.size := caddr
+    have : m <= ds.size := cdddr
+    m.fold (init := #[]) fun i h a => a.push (f (as[i]'(h <> h₁)) bs[i] cs[i] ds[i])
 def zipWith5 (f : α -> β -> γ -> δ -> ζ -> η) : Array α -> Array β -> Array γ -> Array δ -> Array ζ -> Array η
   | as, bs, cs, ds, es => proof_and_fold! f as bs cs ds es
 def zipWith6 (f : α -> β -> γ -> δ -> ζ -> η -> θ) : Array α -> Array β -> Array γ -> Array δ -> Array ζ -> Array η -> Array θ
@@ -157,7 +155,7 @@ def zipWith7 (f : α -> β -> γ -> δ -> ζ -> η -> θ -> ι) : Array α -> Ar
 attribute [inline] zipWith3 zipWith4 zipWith5 zipWith6 zipWith7
 end Array
 
-open Array in instance : Zippable Array where 
+open Array in instance : Zippable Array where
   zipWith; zipWith3; zipWith4; zipWith5; zipWith6; zipWith7
 
 namespace LazyList
@@ -178,7 +176,7 @@ def zipWith7 (f : α -> β -> γ -> δ -> ζ -> η -> θ -> ι) : LazyList α ->
   | _, _, _, _, _, _, _ => [||]
 end LazyList
 
-open LazyList in instance : Zippable LazyList where 
+open LazyList in instance : Zippable LazyList where
   zipWith; zipWith3; zipWith4; zipWith5; zipWith6; zipWith7
 
 instance (priority := low) [Monad m] : Zippable m where
@@ -190,4 +188,3 @@ instance (priority := low) [Monad m] : Zippable m where
   zipWith7 := (· <$> · <*> · <*> · <*> · <*> · <*> · <*> ·)
 
 end
-

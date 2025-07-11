@@ -129,7 +129,7 @@ private unsafe def beqI [BEq α] (xs ys : LazyList α) : Bool :=
   | x ::' xs, y ::' ys => x == y && beq xs.get ys.get
 /--
   the canonical decidable equality for `LazyList`.
-  But the instance `altDecEq` which transfers 
+  But the instance `altDecEq` which transfers
   the decidability of `(· == ·)` to `(· = ·)` is actually used.
   because `beq` itself is override in the runtime by `beqI`.
 -/
@@ -937,4 +937,3 @@ instance : Monad Array where pure := Array.singleton; bind := flip .flatMap
 @[default_instance] instance : Coe Std.Range (List Nat) := ⟨fun {start, stop, step,..} => List.range'TR start (stop - start) step⟩
 @[default_instance] instance : Coe Std.Range (Array Nat) := ⟨fun {start, stop, step,..} => Array.range' start (stop - start) step⟩
 @[default_instance] instance : Coe Std.Range (LazyList Nat) := ⟨.fromRange⟩
-
