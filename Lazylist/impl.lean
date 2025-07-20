@@ -366,7 +366,7 @@ decreasing_by next _ _ h' => simp[-Thunk.get, h']; omega
 -/
 def toStr [ToString α] (l : LazyList α) : String :=
   bracketed (go l) where
-  go | nil => "" | x ::' xs => xs.get.foldl (· ++ toString ·) (toString x)
+  go | nil => "" | x ::' xs => xs.get.foldl (· ++ ", " ++ toString ·) (toString x)
 /--
   Peeks at the head of a list, unlike `toStr`,
   which eagerly triggers the forcing of the whole list.

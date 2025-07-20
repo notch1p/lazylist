@@ -89,63 +89,51 @@ private abbrev cdr {a b} := Nat.min_le_right a b
 private abbrev car {a b} := Nat.min_le_left  a b
 private abbrev nonempty {a : α} {l : List α} := List.cons_ne_nil a l
 local infixr:60 " <> " => Nat.le_trans
-local macro "cadr" : term => ``(cdr <> car)
-local macro "caddr" : term => ``(cdr <> cdr <> car)
-local macro "cadddr" : term => ``(cdr <> cdr <> cdr <> car)
-local macro "caddddr" : term => ``(cdr <> cdr <> cdr <> cdr <> car)
-local macro "cadddddr" : term => ``(cdr <> cdr <> cdr <> cdr <> cdr <> car)
-local macro "caddddddr" : term => ``(cdr <> cdr <> cdr <> cdr <> cdr <> cdr <> car)
-local macro "cadddddddr" : term => ``(cdr <> cdr <> cdr <> cdr <> cdr <> cdr <> cdr <> car)
-
-local macro "cddr" : term => ``(cdr <> cdr)
-local macro "cdddr" : term => ``(cdr <> cdr <> cdr)
-local macro "cddddr" : term => ``(cdr <> cdr <> cdr <> cdr)
-local macro "cdddddr" : term => ``(cdr <> cdr <> cdr <> cdr <> cdr)
-local macro "cddddddr" : term => ``(cdr <> cdr <> cdr <> cdr <> cdr <> cdr)
-local macro "cdddddddr" : term => ``(cdr <> cdr <> cdr <> cdr <> cdr <> cdr <> cdr)
-local macro "cddddddddr" : term => ``(cdr <> cdr <> cdr <> cdr <> cdr <> cdr <> cdr <> cdr)
-
-open Lean
-private abbrev accessors : Array $ MacroM Term :=
-  #[ `(car), `(cadr), `(caddr), `(cadddr)
-  , `(caddddr), `(cadddddr), `(caddddddr), `(cadddddddr)]
-private abbrev accessors' : Array $ MacroM Term :=
-  #[ `(cdr), `(cddr), `(cdddr), `(cddddr)
-   , `(cdddddr), `(cddddddr), `(cdddddddr), `(cddddddddr)]
-private def pfcmds (s : Ident) (pf : Term) (cont : Term) : MacroM Term :=
-  `(have : m <= Array.size $s := $pf; $cont)
-@[local simp] private theorem accsize  :  accessors.size = 8 := by decide
-@[local simp] private theorem accsize' : accessors'.size = 8 := by decide
-
 local syntax "proof_and_fold!" ident ident+ : term
+
+open Lean in
+private abbrev accessors : Array $ MacroM Term × MacroM Term :=
+  #[ (``(car)                                                 , ``(cdr))
+   , (``(cdr <> car)                                          , ``(cdr <> cdr))
+   , (``(cdr <> cdr <> car)                                   , ``(cdr <> cdr <> cdr))
+   , (``(cdr <> cdr <> cdr <> car)                            , ``(cdr <> cdr <> cdr <> cdr))
+   , (``(cdr <> cdr <> cdr <> cdr <> car)                     , ``(cdr <> cdr <> cdr <> cdr <> cdr))
+   , (``(cdr <> cdr <> cdr <> cdr <> cdr <> car)              , ``(cdr <> cdr <> cdr <> cdr <> cdr <> cdr))
+   , (``(cdr <> cdr <> cdr <> cdr <> cdr <> cdr <> car)       , ``(cdr <> cdr <> cdr <> cdr <> cdr <> cdr <> cdr))
+   , (``(cdr <> cdr <> cdr <> cdr <> cdr <> cdr <> cdr <> car), ``(cdr <> cdr <> cdr <> cdr <> cdr <> cdr <> cdr <> cdr))]
+in
+@[inline] private def mkProof (acc : Term) (arr : Term) (tac : Term) : MacroM Term :=
+  `($acc (Array.getInternal $arr i (h <> $tac)))
+in
+@[inline] private def prefixBlk (t : Array Term) (funapp : Term) : MacroM Syntax :=
+  ``(Nat.fold (minOf [$[Array.size $t],*] nonempty) (init := #[]) fun i h a => Array.push a $funapp)
+in
+@[local simp] private theorem accsize : accessors.size = 8 := by decide
+in
 macro_rules
-  | `(proof_and_fold! $f $[$t]*) => do
+  | `(proof_and_fold! $f $[$t]*) =>
       let ts := t.size
       if H : ts <= 8 ∧ ts >= 2 then
-        let funapp <- t.foldlM (init := f) fun a s => `($a ($s[i]))
-        let cont <- `(Nat.fold m (init := #[]) fun i h a => Array.push a $(funapp))
-        let blk <- ts.foldRevM (init := cont) fun i h a => do
+        prefixBlk t =<< ts.foldM (init := f) fun i h a =>
           have : i < accessors.size := Nat.lt_of_lt_of_le h $ accsize ▸ H.1
-          if i = ts - 1 then
-            have : i - 1 < accessors'.size := Nat.sub_lt_of_lt $ accsize' ▸ accsize ▸ this
-            pfcmds t[i] (<-accessors'[i-1]) a
-          else
-            pfcmds t[i] (<- accessors[i]) a
-        `(let m := minOf [$[Array.size $t],*] nonempty;
-          $blk)
+          mkProof a t[i] =<< if i == ts - 1
+                             then accessors[i - 1].2
+                             else accessors[i].1
       else Macro.throwError "handler not implemented, see source."
 
 namespace Array
 def zipWith3 (f : α -> β -> γ -> δ) : Array α -> Array β -> Array γ -> Array δ
   | as, bs, cs => proof_and_fold! f as bs cs
 def zipWith4 (f : α -> β -> γ -> δ -> ζ) : Array α -> Array β -> Array γ -> Array δ -> Array ζ
-  | as, bs, cs, ds => -- what `proof_and_fold!` should be expanded to
-    let m := minOf [as.size, bs.size, cs.size, ds.size] nonempty
-    have h₁ : m <= as.size := car
-    have : m <= bs.size := cadr
-    have : m <= cs.size := caddr
-    have : m <= ds.size := cdddr
-    m.fold (init := #[]) fun i h a => a.push (f (as[i]'(h <> h₁)) bs[i] cs[i] ds[i])
+  | as, bs, cs, ds =>
+  -- what `proof_and_fold!` should be expanded to
+  -- we write out proof explicitly instead of using `get_elem_tactic` to speed up editing.
+    minOf [as.size, bs.size, cs.size, ds.size] nonempty
+    |>.fold (init := #[]) fun i h a =>
+      a.push (f (as[i]'(h <> car))
+                (bs[i]'(h <> cdr <> car))
+                (cs[i]'(h <> cdr <> cdr <> car))
+                (ds[i]'(h <> cdr <> cdr <> cdr)))
 def zipWith5 (f : α -> β -> γ -> δ -> ζ -> η) : Array α -> Array β -> Array γ -> Array δ -> Array ζ -> Array η
   | as, bs, cs, ds, es => proof_and_fold! f as bs cs ds es
 def zipWith6 (f : α -> β -> γ -> δ -> ζ -> η -> θ) : Array α -> Array β -> Array γ -> Array δ -> Array ζ -> Array η -> Array θ
