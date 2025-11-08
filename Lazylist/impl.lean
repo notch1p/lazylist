@@ -800,6 +800,29 @@ private unsafe def mapMonoI [Monad m] (f : α -> m α) (as : LazyList α) : m $ 
 opaque mapMonoM [Monad m] : (α -> m α) -> LazyList α -> m (LazyList α)
 def mapMono (f : α -> α) (l : LazyList α) : LazyList α := Id.run $ mapMonoM f l
 
+/-- 
+  use `f` to generate a (potentially infinite) list with `init` as the seed.
+
+  ```
+  unfoldr f init 
+    := [||] if none = f init
+    := a ::' unfoldr f b where some (a, b) = f init
+
+  theorem unfoldr_foldr_id 
+    {f : β -> Option (α × β)}
+    {f' : α -> β -> β}
+    (h₁ : f (f' x y) = some (x, y))
+    (h₂ : f init = none)
+    : unfoldr f (foldr f' init xs) = xs := ⟨...⟩
+  ```
+  
+  - `unfoldr` is a dual to `foldr`.
+-/
+partial def unfoldr (f : β -> Option (α × β)) (init : β) : LazyList α :=
+  match f init with
+  | none => [||]
+  | some (a, b) => a ::' unfoldr f b
+
 protected def Subset (xs ys : LazyList α) := ∀ ⦃a : α⦄, a ∈ xs -> a ∈ ys
 instance : HasSubset (LazyList α) := ⟨LazyList.Subset⟩
 

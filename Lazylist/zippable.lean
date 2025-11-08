@@ -10,8 +10,9 @@ macro:max "prod_of!" n:num : term =>
   match n.getNat with
   | 0 => ``(())
   | 1 => ``(id)
-  | t@(n + 2) => do
-    let args := t.fold (fun i _ a => a.push $ hole i) #[]
+  | t@(n + 2) =>
+    -- leanprover/lean4#9443
+    let args := Array.ofFn $ hole ∘ @Fin.toNat t
     let ps := n.foldRev (fun i _ a => mkPair (hole i) a) (mkPair (hole n) (hole n.succ))
     ``(fun $args* => $ps)
 
