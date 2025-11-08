@@ -413,7 +413,7 @@ attribute [simp, grind] length_cons length_nil length_thunk_nil
     Nat.not_succ_le_zero v nh
 @[simp, grind] theorem oflist_length_eq_length : (ofList as).length = as.length := by
   induction as with
-  | nil => simp[ofList,length]
+  | nil => simp[ofList]
   | cons x xs ih => simp[oflist_cons]; apply ih
 @[simp, grind] theorem list_of_tolist_of_oflist : (ofList as).toList = as := by
   induction as with
@@ -724,7 +724,7 @@ theorem mem_of_elem_eq_true [BEq α] [LawfulBEq α] {a : α} {as : LazyList α} 
       simp [contains]
       split
       case h_1 _ heq =>
-        intros; simp_all[(· == ·)]; rw[<-heq]
+        intros; simp_all; rw[<-heq]
         exact Mem.head xs.get
       next _ heq =>
         intro h

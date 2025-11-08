@@ -1,13 +1,19 @@
 import Lazylist.impl
 import Lean
 
+def hole := Lean.mkIdent ∘ String.toName ∘ ("x" ++ Nat.toSubscriptString ·)
+
+open Lean.Syntax (mkCApp) in
+def mkPair t₁ t₂ := mkCApp `Prod.mk #[t₁, t₂]
+in
 macro:max "prod_of!" n:num : term =>
   match n.getNat with
   | 0 => ``(())
   | 1 => ``(id)
-  | n + 2 =>
-    ``((· , ·)) >>= n.foldM fun _ _ a =>
-      ``((· , $a))
+  | t@(n + 2) => do
+    let args := t.fold (fun i _ a => a.push $ hole i) #[]
+    let ps := n.foldRev (fun i _ a => mkPair (hole i) a) (mkPair (hole n) (hole n.succ))
+    ``(fun $args* => $ps)
 
 /--
   Similar to Haskell's `MonadZip`, but for collections especially.
