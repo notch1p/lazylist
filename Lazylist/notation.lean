@@ -2,7 +2,7 @@ import Lean
 import Lazylist.zippable
 namespace LazyList open Lean
 
-local macro f:term:50 " depends_on! " p:term:50 : term =>
+macro f:term:50 " depends_on! " p:term:50 : term =>
   `(if $p then Option.some $f else Option.none)
 
 /--
@@ -100,7 +100,6 @@ syntax (name := «term[|_<-_in|]») "[" term " | " withoutPosition(sepBy1((term 
 syntax (name := «term[|_<-_in?|]») "[" term " where " term " | " withoutPosition(sepBy1((term (" ← " <|> " <- ") term), " in ")) "]" : term
 
 attribute [inherit_doc «term[|_<-_|]»]  «term[|_<-_?|]» «term[|_<-_||]» «term[|_<-_|?|]» «term[|_<-_in|]» «term[|_<-_in?|]»
-
 macro_rules
 -- gen
   | `([| $start to $(stop)? $[by $step]? |]) => do
@@ -173,7 +172,7 @@ macro_rules
   | `([ $f where $p | $[$i <- $l]|* ]) => do
     match h : l.size with
     | 0 => unreachable!
-    | 1 => ``(                      (Functor.filterMap (fun $i* => $f depends_on! $p) $(l[0])))
+    | 1 => ``(                      (Mappable.filterMap (fun $i* => $f depends_on! $p) $(l[0])))
     | 2 => ``(Mappable.filterMap id (Zippable.zipWith  (fun $i* => $f depends_on! $p) $(l[0]) $(l[1])))
     | 3 => ``(Mappable.filterMap id (Zippable.zipWith3 (fun $i* => $f depends_on! $p) $(l[0]) $(l[1]) $(l[2])))
     | 4 => ``(Mappable.filterMap id (Zippable.zipWith4 (fun $i* => $f depends_on! $p) $(l[0]) $(l[1]) $(l[2]) $(l[3])))
